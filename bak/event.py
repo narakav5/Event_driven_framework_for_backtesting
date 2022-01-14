@@ -28,7 +28,7 @@ class SignalEvent(Event):
     根据这个信号来采取行动
     """
 
-    def __init__(self, strategy_id, date_time, symbol, datetime, signal_type, order_price, strength, stop_loss=None):
+    def __init__(self, strategy_id, date_time, symbol, datetime, signal_type, order_price, strength):
         self.strategy_id = strategy_id
         self.date_time = date_time
         self.type = 'SIGNAL'
@@ -37,7 +37,6 @@ class SignalEvent(Event):
         self.signal_type = signal_type
         self.strength = strength
         self.order_price = order_price
-        self.stop_loss = stop_loss
 
 
 class OrderEvent(Event):
@@ -74,14 +73,14 @@ class FillEvent(Event):
     """
 
     def __init__(self, date_time, symbol, quantity, buy_or_sell,
-                 order_price, commission=None):
+                 fill_cost, commission=None):
         self.type = 'FILL'
         self.date_time = date_time
         self.symbol = symbol
         # self.exchange = exchange
         self.quantity = quantity
         self.buy_or_sell = buy_or_sell
-        self.order_price = order_price
+        self.fill_cost = fill_cost
 
         if commission is None:
             self.commission = self.calculate_ib_commission()
@@ -92,15 +91,9 @@ class FillEvent(Event):
         """
         用来计算基于Interactive Brokers的交易费用。
         """
-        stamp_tax = 0.001  # 卖
-        transaction_fees = 0.0000687  # 买卖
-        transfer_fees = 0.0002  # 买卖
-        brokerage = 0.003  # 买卖
-        if self.buy_or_sell == "BUY":
-            full_cost = self.order_price * self.quantity * (transaction_fees + transfer_fees + brokerage)
-        elif self.buy_or_sell == "SELL":
-            full_cost = self.order_price * self.quantity * (stamp_tax + transaction_fees + transfer_fees + brokerage)
+        full_cost = 1.3
+        if self.quantity <= 500:
+            full_cost = max(1.3, 0.013 * self.quantity)
         else:
-            raise ValueError("未输入交易信号")
-        print(full_cost)
+            full_cost = max(1.3, 0.008 * self.quantity)
         return full_cost

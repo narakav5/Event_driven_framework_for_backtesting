@@ -20,7 +20,7 @@ class plot_performance():
         self.equity_data = equity_curve
         self.stock_data = stock_curve
         self.summary_recording = copy.deepcopy(summary_recording)
-        close_price = self.stock_data.loc[self.summary_recording['date_time'], :]['adj_close']
+        close_price = self.stock_data.loc[self.summary_recording['date_time'], :]['close']
         self.summary_recording.set_index('date_time', inplace=True)
         self.summary_recording['close_price'] = close_price
         self.fig = plt.figure()
@@ -28,7 +28,6 @@ class plot_performance():
 
     def plot_equity_curve(self):
         ax1 = self.fig.add_subplot(111, ylabel='Portfolio value: %')
-        print(self.equity_data['equity_curve'])
         self.equity_data['equity_curve'].plot(ax=ax1, color='red', lw=2.)
         plt.grid(True)
         plt.show()
@@ -38,7 +37,7 @@ class plot_performance():
         # self.fig.patch.set_facecolor('white')
         ax2 = self.fig.add_subplot(111, ylabel='Stock value: %')
         # self.stock_data['adj_close'].plot(ax=ax2, color='blue', lw=2.)
-        ohlc = self.stock_data[['open', 'high', 'low', 'adj_close']]
+        ohlc = self.stock_data[['open', 'high', 'low', 'close']]
         ohlc = ohlc.reset_index().values
         date = date2num(ohlc[:, 0])
         ohlc[:, 0] = date
@@ -64,8 +63,7 @@ class plot_performance():
 
         ax2.plot(lexit_x_value, lexit_y_value, 'v', color='red', markersize=8,
                  label='Exit')
-        for index in range(len(lexit_x_value)):
-            plt.text(lexit_x_value[index], lexit_y_value[index] * 1.05, "Sell", ha='center', va='bottom', fontsize=8)
+        plt.text(lexit_x_value[0], lexit_y_value[0] * 1.05, "Sell", ha='center', va='bottom', fontsize=8)
 
         ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
         ax2.xaxis.set_major_locator(mticker.MaxNLocator(10))

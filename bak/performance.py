@@ -24,8 +24,7 @@ def create_drawdowns(pnl):
     idx = pnl.index
     drawdown = pd.Series(index=idx)
     duration = pd.Series(index=idx)
-    if not range(1, len(idx)):
-        return 0, 0, 0
+
     for t in range(1, len(idx)):
         hwm.append(max(hwm[t - 1], pnl[t]))
         drawdown[t] = (hwm[t] - pnl[t])

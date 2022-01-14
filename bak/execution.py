@@ -50,7 +50,7 @@ class SimulatedExecutionHandler(ExecutionHandler):
         if event.type == 'ORDER':
             fill_event = FillEvent(event.date_time,
                                    event.symbol,
-                                   event.quantity, event.buy_or_sell, order_price=event.order_price, commission=None)
+                                   event.quantity, event.buy_or_sell, fill_cost=None, commission=None)
             self.events.put(fill_event)
             if event.direction != 'EXIT':
                 self.entry_time += 1

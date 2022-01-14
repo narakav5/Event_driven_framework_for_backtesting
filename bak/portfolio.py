@@ -20,13 +20,6 @@ class Portfolio(object):
     """
 
     def __init__(self, bars, events, start_date, initial_capital=100000):
-        """
-
-        :param bars: 数据对象
-        :param events: 事件
-        :param start_date: 开始日期
-        :param initial_capital: 初始资本
-        """
         self.bars = bars
         self.events = events
 
@@ -35,20 +28,14 @@ class Portfolio(object):
 
         self.start_date = start_date
         self.initial_capital = initial_capital
-        # 持仓列表 [{'AAPL': 0.0, 'datetime': datetime.datetime(2015, 5, 1, 0, 0)}]
-        # self.all_positions = self.__construct_all_positions()
-        self.all_positions = []
-        # 初始化持仓数量 {'AAPL': 0}
+
+        self.all_positions = self.__construct_all_positions()
+
         self.current_positions = dict((k, v) for k, v in
                                       [(s, 0) for s in self.symbol_list])
-        # 资产组合的startdate的价值
-        # [{'AAPL': 0.0, 'cash': 100000.0, 'commission': 0.0, 'total': 100000.0}]
-        # self.all_holdings = self.__construct_all_holdings()
-        self.all_holdings = []
-        # 构建资产组合的初始价值
-        # {'AAPL': 0.0, 'cash': 100000.0, 'commission': 0.0,'total': 100000.0}
+
+        self.all_holdings = self.__construct_all_holdings()
         self.current_holdings = self.__construct_current_holdings()
-        self.equity_curve = None
 
     def __construct_all_positions(self):
         """
@@ -78,10 +65,6 @@ class Portfolio(object):
         d['total'] = self.initial_capital
         return d
 
-    @abstractmethod
-    def generate_naive_order(self, signal):
-        raise NotImplementedError("Should implement generate_naive_order()")
-
     def update_timeindex(self):  # sumarize the hoilding information. Just for recording
         """
         在持仓矩阵当中根据当前市场数据来增加一条新纪录，它反映了这个阶段所有持仓的市场价值
@@ -103,7 +86,8 @@ class Portfolio(object):
         dh['total'] = self.current_holdings['cash']
 
         for s in self.symbol_list:
-            market_value = self.current_positions[s] * self.bars.get_latest_bar_value(s, "adj_close")
+            market_value = self.current_positions[s] * \
+                self.bars.get_latest_bar_value(s, "adj_close")
             dh[s] = market_value
             dh['total'] += market_value
         self.all_holdings.append(dh)
@@ -112,13 +96,13 @@ class Portfolio(object):
         """
         获取一个Fill对象并更新持仓矩阵来反映最新的持仓
         """
-        # 交易方向
         fill_dir = 0
         if fill_event.buy_or_sell == 'BUY':
             fill_dir = 1
         if fill_event.buy_or_sell == 'SELL':
             fill_dir = -1
-        self.current_positions[fill_event.symbol] += fill_dir * fill_event.quantity
+        self.current_positions[fill_event.symbol] += fill_dir * \
+            fill_event.quantity
 
     def update_holdings_from_fill(self, fill):
         """
@@ -138,6 +122,7 @@ class Portfolio(object):
         self.current_holdings['commission'] += fill.commission
         self.current_holdings['cash'] -= (cost + fill.commission)
         # self.current_holdings['total']=self.current_holdings['total'] - fill.commission
+        a = 1
 
     def update_fill(self, event):
         """
@@ -147,6 +132,35 @@ class Portfolio(object):
             self.update_positions_from_fill(event)
             self.update_holdings_from_fill(event)
 
+    @abstractmethod
+    def generate_naive_order(self, signal):
+        raise NotImplementedError("Should implement generate_naive_order()")
+
+    # def generate_naive_order(self,signal):
+    #     """
+    #     简单的生成一个订单对象，固定的数量，利用信号对象，没有风险管理
+    #     或头寸调整的考虑
+    #     """
+    #     order=None
+    #
+    #     symbol=signal.symbol
+    #     direction=signal.signal_type
+    #     strength=signal.strength
+    #
+    #     mkt_quantity=100
+    #     cur_quantity=self.current_positions[symbol]
+    #     order_type='MKT'
+    #
+    #     if direction=='LONG' and cur_quantity==0:
+    #         order=OrderEvent(symbol,order_type,mkt_quantity,'BUY')
+    #     if direction=='SHORT' and cur_quantity==0:
+    #         order=OrderEvent(symbol,order_type,mkt_quantity,'SELL')
+    #     if direction=='EXIT' and cur_quantity>0:
+    #         order=OrderEvent(symbol,order_type,abs(cur_quantity),'SELL')
+    #     if direction=='EXIT' and cur_quantity<0:
+    #         order=OrderEvent(symbol,order_type,abs(cur_quantity),'BUY')
+    #
+    #     return order
     def update_signal(self, event):
         """
         基于SignalEvent来生成新的订单，完成Portfolio的逻辑
@@ -159,10 +173,11 @@ class Portfolio(object):
         """
         基于all_holdings创建一个pandas的DataFrame。
         """
-        self.equity_curve = pd.DataFrame(self.all_holdings)
-        self.equity_curve.set_index('datetime', inplace=True)
-        self.equity_curve['returns'] = self.equity_curve['total'].pct_change()
-        self.equity_curve['equity_curve'] = (1.0 + self.equity_curve['returns']).cumprod()
+        curve = pd.DataFrame(self.all_holdings)
+        curve.set_index('datetime', inplace=True)
+        curve['returns'] = curve['total'].pct_change()
+        curve['equity_curve'] = (1.0 + curve['returns']).cumprod()
+        self.equity_curve = curve
 
     def output_summary_stats(self):
         """
