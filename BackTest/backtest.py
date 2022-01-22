@@ -3,11 +3,11 @@
 # backtest.py
 
 
-import datetime
 import pprint
 import queue
 import time
-from equity_plot import plot_performance
+from BackTest.equity_plot import plot_performance
+import pandas as pd
 
 
 class Backtest(object):
@@ -54,7 +54,6 @@ class Backtest(object):
         self.signals = 0
         self.orders = 0
         self.fills = 0
-        self.num_strats = 1
 
         # 初始化生成与交易关联的所有实例
         self._generate_trading_instances()
@@ -69,15 +68,14 @@ class Backtest(object):
         print(
             "Creating DataHandler,Strategy,Portfolio and ExecutionHandler/n"
         )
-        # print("strategy parameter list:%s..." % strategy_params_dict)
         self.data_handler = self.data_handler_cls(self.events, self.csv_dir,
                                                   self.symbol_list, self.start_date, self.end_date, self.data_source)
         self.strategy = self.strategy_cls(
             self.data_handler,
-            self.events)  # Create the instance of strategy
+            self.events)
         self.portfolio = self.portfolio_cls(self.data_handler, self.events, self.start_date,
                                             self.initial_capital)  # create instance of portfolio
-        self.execution_handler = self.execution_handler_cls(self.events)
+        self.execution_handler = self.execution_handler_cls(self.events, self.symbol_list)
 
     def _run_backtest(self):
         """
@@ -134,10 +132,10 @@ class Backtest(object):
         print("Signals: %s" % self.signals)
         print("Orders: %s" % self.orders)
         print("Fills: %s" % self.fills)
-        self.portfolio.equity_curve.round(2).to_csv('equity.csv')
+        self.portfolio.equity_curve.round(2).to_csv('.\\output\\equity.csv')
         # self.execution_handler.execution_records.set_index('date_time',inplace =True)
         self.execution_handler.execution_records.round(2).to_csv(
-            'Execution_summary.csv')
+            '.\\output\\Execution_summary.csv')
 
     def run_trading(self):
         """
@@ -145,8 +143,12 @@ class Backtest(object):
         """
         self._run_backtest()
         self._output_performance()
+        symbol_data = pd.DataFrame()
+        for symbol in self.symbol_list:
+            symbol_data = symbol_data.append(self.data_handler.symbol_data[symbol])
+        symbol_data = symbol_data.set_index('ticker', append=True, drop=False).swaplevel()
         my_plot = plot_performance(self.portfolio.equity_curve.round(2),
-                                   self.data_handler.symbol_data[self.symbol_list[0]],
+                                   symbol_data,
                                    self.execution_handler.execution_records)
         my_plot.plot_equity_curve()
         my_plot.plot_stock_curve()

@@ -12,7 +12,7 @@ try:
 except ImportError:
     import queue
 
-from event import FillEvent
+from Events.event import FillEvent
 
 
 class ExecutionHandler(object, metaclass=ABCMeta):

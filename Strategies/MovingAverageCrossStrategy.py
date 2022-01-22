@@ -1,7 +1,7 @@
 from Strategies.strategy import Strategy
 import numpy as np
 import datetime
-from event import SignalEvent
+from Events.SignalEvent import SignalEvent
 
 
 class MovingAverageCrossStrategy(Strategy):

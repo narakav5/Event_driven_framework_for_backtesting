@@ -9,7 +9,7 @@ import os, os.path
 import numpy as np
 import pandas as pd
 
-from event import MarketEvent
+from Events.event import MarketEvent
 
 
 class DataHandler(object):

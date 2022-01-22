@@ -1,74 +1,16 @@
-# -*- coding: utf-8 -*-
-
-# data.py
-
-from abc import ABCMeta, abstractmethod
+from .data import DataHandler
 import os
 import os.path
 
 import numpy as np
 import pandas as pd
 import talib
+import pymongo
 
-from event import MarketEvent
-
-
-class DataHandler(object):
-    """
-    DataHandler是一个抽象基类提供所有后续的数据处理类的接口（包括历史和
-    实际数据处理）
-    （衍生的）数据处理对象的目标是输出一组针对每个请求的代码的数据条
-    （OHLCVI），以这样的方式来模拟实际的交易策略并发送市场信号。
-    在后续的回测当中，历史数据和实际交易采用相同的方式。
-    """
-    __metaclass__ = ABCMeta
-
-    # @abstractmethod
-    # def get_latest_bar(self, symbol):
-    #     """
-    #     返回最近更新的数据条目
-    #     """
-    #     raise NotImplementedError("Should implement get_latest_bar()")
-
-    @abstractmethod
-    def get_latest_bars(self, symbol, N=1):
-        """
-        返回最近的N条数据
-        """
-        raise NotImplementedError("Should implement get_latest_bars()")
-
-    @abstractmethod
-    def get_latest_bar_datetime(self, symbol):
-        """
-        返回最近数据条目对应的Python datetime对象
-        """
-        raise NotImplementedError("Should implement get_latest_bar_datetime()")
-
-    @abstractmethod
-    def get_latest_bar_value(self, symbol, val_type):
-        """
-        返回最近的数据条目中的Open,High,Low,Close,Volume或者oi的数据
-        """
-        raise NotImplementedError("Should implement get_latest_bar_value()")
-
-    @abstractmethod
-    def get_latest_bars_values(self, symbol, val_type, N=1):
-        """
-        返回最近的N条数据中的相关数值，如果没有那么多数据
-        则返回N-k条数据
-        """
-        raise NotImplementedError("Should implement get_latest_bars_values()")
-
-    @abstractmethod
-    def update_bars(self):
-        """
-        将最近的数据条目放入到数据序列中，采用元组的格式
-        (datetime,open,high,low,close,volume,open interest)
-        """
-        raise NotImplementedError("Should implement update_bars()")
+from Events.MarketEvent import MarketEvent
 
 
-class HistoricCSVDataHandler(DataHandler):
+class HistoricStockCSVDataHandler(DataHandler):
     """
     HistoricCSVDataHandler类用来读取请求的代码的CSV文件，这些CSV文件
     存储在磁盘上，提供了一种类似于实际交易的场景的”最近数据“一种概念。
@@ -103,6 +45,7 @@ class HistoricCSVDataHandler(DataHandler):
         从数据路径中打开CSV文件，将它们转化为pandas的DataFrame。
         这里假设数据来自于yahoo。
         """
+
         if data_source == 'datayes':
             columns = ['serialNo', 'secID', 'ticker', 'secShortName', 'exchangeCD',
                        'tradeDate', 'preClosePrice', 'actPreClosePrice', 'open',
@@ -110,25 +53,28 @@ class HistoricCSVDataHandler(DataHandler):
                        'turnoverValue', 'dealAmount', 'turnoverRate', 'accumAdjFactor',
                        'negMarketValue', 'marketValue', 'isOpen', 'vwap']
             index_col = 'tradeDate'
+            converters = {'ticker': str}
         else:
-            columns = ['datetime', 'high', 'low', 'open', 'close', 'volume', 'adj_close']
-            index_col = 'datetime'
+            raise ValueError("未识别数据类型")
+
         # 初始化数据
         for s in self.symbol_list:
             self.symbol_data[s] = pd.read_csv(
                 os.path.join(self.csv_dir, '%s.csv' % s),
                 header=0, index_col=index_col, parse_dates=True,
-                names=columns
+                names=columns, converters=converters
             ).sort_index()[:self.end_date]
 
             if data_source == 'datayes':
                 self.symbol_data[s] = self.symbol_data[s][self.symbol_data[s]['isOpen'] == 1]
-                self.symbol_data[s]['close'] = self.symbol_data[s]["adj_close"] / self.symbol_data[s]["accumAdjFactor"]
-                # pd.DataFrame.pct_change，显示与之前的数差值的百分比
+                self.symbol_data[s]['close'] = self.symbol_data[s]["adj_close"] / self.symbol_data[s][
+                    "accumAdjFactor"]
+            # pd.DataFrame.pct_change，显示与之前的数差值的百分比
             self.symbol_data[s]["pct_change"] = self.symbol_data[s]["adj_close"].pct_change()
             self.symbol_data[s]["atr"] = talib.ATR(self.symbol_data[s]['high'], self.symbol_data[s]['low'],
                                                    self.symbol_data[s]['adj_close'],
                                                    timeperiod=20)
+
             # make the symbol_data as a generator
             # 生成可迭代数据
             self.data_generator[s] = self.symbol_data[s].iterrows()
@@ -220,3 +166,91 @@ class HistoricCSVDataHandler(DataHandler):
                 if bar is not None:
                     self.latest_symbol_data[s].append(bar)
         self.events.put(MarketEvent())
+
+
+class HistoricIndexCSVDataHandler(DataHandler):
+    """
+    HistoricCSVDataHandler类用来读取请求的代码的CSV文件，这些CSV文件
+    存储在磁盘上，提供了一种类似于实际交易的场景的”最近数据“一种概念。
+    """
+
+    def __init__(self, csv_dir, index_list, start_date, end_date=None):
+        """
+        初始化数据处理
+        :param csv_dir: 数据存放位置
+        :param index_list: 代码列表
+        """
+        self.csv_dir = csv_dir
+        self.index_list = index_list
+        self.start_date = start_date
+        self.end_date = end_date
+
+        # 初始化行情列表:dict，key=symbol，value=pd.DataFrame(csv)
+        self.index_data = {}
+        # 初始化数据源
+        self._open_convert_csv_files()
+
+    def _open_convert_csv_files(self):
+        """
+        从数据路径中打开CSV文件，将它们转化为pandas的DataFrame。
+        这里假设数据来自于yahoo。
+        """
+
+        columns = ['serialNo', 'indexID', 'ticker', 'porgFullName', 'secShortName', 'exchangeCD', 'tradeDate',
+                   'preCloseIndex', 'openIndex', 'lowestIndex', 'highestIndex', 'closeIndex', 'turnoverVol',
+                   'turnoverValue', 'CHG', 'CHGPct']
+        index_col = 'tradeDate'
+
+        # 初始化数据
+        for s in self.index_list:
+            self.index_data[s] = pd.read_csv(
+                os.path.join(self.csv_dir, '%s.csv' % s),
+                header=0, index_col=index_col, parse_dates=True,
+                names=columns
+            ).sort_index()[:self.end_date]
+
+    def get_latest_bars(self, symbol, N=1): pass
+
+    def get_latest_bar_datetime(self, symbol): pass
+
+    def get_latest_bar_value(self, symbol, val_type): pass
+
+    def get_latest_bars_values(self, symbol, val_type, N=1): pass
+
+    def update_bars(self): pass
+
+
+class DBDataHandler(DataHandler):
+    """
+    HistoricDailyQuotaDataHandler类用来读取请求的代码的数据库历史数据。
+    """
+
+    def __init__(self, collection, symbol_list, start_date, end_date=None):
+        """
+
+        :param collection:
+        :param symbol_list:
+        :param start_date:
+        :param end_date:
+        """
+        __client = pymongo.MongoClient('mongodb://localhost:27017/')
+        __db = __client.qtsdb
+        __db.authenticate("user", "Srcb123!", mechanism='SCRAM-SHA-1')
+
+        self.symbol_list = symbol_list
+        self.start_date = start_date
+        self.end_date = end_date
+
+        # 初始化数据源
+        query = {}
+        self.data = __db[collection].find(query)
+
+    def get_latest_bars(self, symbol, N=1): pass
+
+    def get_latest_bar_datetime(self, symbol): pass
+
+    def get_latest_bar_value(self, symbol, val_type): pass
+
+    def get_latest_bars_values(self, symbol, val_type, N=1): pass
+
+    def update_bars(self): pass

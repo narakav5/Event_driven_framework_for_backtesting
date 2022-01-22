@@ -1,38 +1,25 @@
-# -*- coding: utf-8 -*-
-
-# mac.py
-from __future__ import print_function
-
-import datetime
+from .portfolio import Portfolio
 import math
-import os
-from Events.event import OrderEvent
-from BackTest.backtest import Backtest
-from Data.data import HistoricCSVDataHandler
-from Executions.execution import SimulatedExecutionHandler
-from Portfolios.portfolio import Portfolio
-from Strategies.MovingAverageCrossStrategy import MovingAverageCrossStrategy
-
-
-# Tasks to do:
-# 1. Complete the sea turtle strategy
-# 2. Multiple strategies
-# 3. Run every day automatically
-# 4. Send text when one of the strategy find something
+from Events.OrderEvent import OrderEvent
 
 
 # 我的投资组合
 class My_portfolio(Portfolio):
     # 生成原始订单
     def generate_naive_order(self, signal):
+        """
+
+        :param signal: event.SignalEvent()
+        :return: event.OrderEvent()
+        """
         order = None
         date_time = signal.date_time
         symbol = signal.symbol
         direction = signal.signal_type
-        strength = signal.strength
         order_price = signal.order_price
         all_in_cash = self.current_holdings['cash']
-        mkt_quantity = math.floor(all_in_cash / order_price)
+        # mkt_quantity = math.floor(all_in_cash / order_price / 100) * 100
+        mkt_quantity = 100
         cur_quantity = self.current_positions[symbol]
         order_type = 'MKT'
 
@@ -63,6 +50,15 @@ class My_portfolio(Portfolio):
                 'SELL',
                 order_price,
                 direction)
+        if direction == 'STOP_LOSS' and cur_quantity > 0:
+            order = OrderEvent(
+                date_time,
+                symbol,
+                order_type,
+                abs(cur_quantity),
+                'SELL',
+                order_price,
+                direction)
         if direction == 'EXIT' and cur_quantity < 0:
             order = OrderEvent(
                 date_time,
@@ -74,21 +70,3 @@ class My_portfolio(Portfolio):
                 direction)
 
         return order
-
-
-if __name__ == "__main__":
-    print('text')
-    path1 = os.path.abspath('.')
-    csv_dir = 'data_csv'
-    csv_dir = os.path.join(path1, csv_dir)
-    symbol_list = ['AAPL']
-    # symbol_list = ['hs300']
-    initial_capital = 100000.0
-    heartbeat = 0.0
-    start_date = datetime.datetime(2015, 5, 1, 0, 0, 0)
-    backtest = Backtest(
-        csv_dir, symbol_list, initial_capital, heartbeat,
-        start_date, data_handler_cls=HistoricCSVDataHandler, execution_handler_cls=SimulatedExecutionHandler,
-        portfolio_cls=My_portfolio, strategy_cls=MovingAverageCrossStrategy
-    )
-    backtest.run_trading()

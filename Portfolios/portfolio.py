@@ -8,7 +8,7 @@ except ImportError:
 
 import pandas as pd
 from abc import abstractmethod
-from performance import create_sharpe_ratio, create_drawdowns
+from BackTest.performance import create_sharpe_ratio, create_drawdowns
 
 
 class Portfolio(object):
@@ -180,5 +180,5 @@ class Portfolio(object):
                  ("Sharpe Ratio", "%0.2f" % sharpe_ratio),
                  ("Max Drawdown", "%0.2f%%" % (max_dd * 100)),
                  ("Drawdown Duration", "%d" % dd_duration)]
-        self.equity_curve.to_csv('equity.csv')
+        self.equity_curve.to_csv('.\\output\\equity.csv')
         return stats

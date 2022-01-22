@@ -4,11 +4,10 @@
 
 from __future__ import print_function
 
-import datetime
 import pprint
 import queue
 import time
-from equity_plot import plot_performance
+from BackTest.equity_plot import plot_performance
 
 
 class Backtest(object):

@@ -8,7 +8,7 @@ except ImportError:
 
 import pandas as pd
 from abc import abstractmethod
-from performance import create_sharpe_ratio, create_drawdowns
+from BackTest.performance import create_sharpe_ratio, create_drawdowns
 
 
 class Portfolio(object):
